@@ -9,7 +9,9 @@ import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.view.View;
 import android.view.Window;
+import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -65,10 +67,25 @@ public class MainActivity extends Activity {
                 .build();
 
         web.addJavascriptInterface(new Haptic(this), "AndroidHaptic");
+        // 페이지의 JS 오류를 화면(로딩 문구)에 그대로 보여줘 원인을 바로 알 수 있게
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage m) {
+                if (m.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    String src = m.sourceId() == null ? "" : m.sourceId().substring(m.sourceId().lastIndexOf('/') + 1);
+                    report(m.message() + " (" + src + ":" + m.lineNumber() + ")");
+                }
+                return super.onConsoleMessage(m);
+            }
+        });
         web.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return loader.shouldInterceptRequest(request.getUrl());
+                WebResourceResponse r = loader.shouldInterceptRequest(request.getUrl());
+                if (r != null && r.getData() == null && "appassets.androidplatform.net".equals(request.getUrl().getHost())) {
+                    report("앱 안에 파일이 없음: " + request.getUrl().getPath());
+                }
+                return r;
             }
 
             @Override
@@ -83,6 +100,12 @@ public class MainActivity extends Activity {
         setContentView(web);
         if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else web.loadUrl(HOME);
+    }
+
+    private void report(final String msg) {
+        if (web == null) return;
+        final String js = "window.__showErr&&window.__showErr(" + org.json.JSONObject.quote(msg) + ")";
+        web.post(new Runnable() { public void run() { web.evaluateJavascript(js, null); } });
     }
 
     @Override
