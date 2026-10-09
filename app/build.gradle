@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.kyuil71.softsmile'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.kyuil71.softsmile'
+        minSdk 26
+        targetSdk 34
+        // 빌드할 때마다 버전이 올라가서 기존 앱 위에 덮어 설치됩니다
+        versionCode System.getenv('GITHUB_RUN_NUMBER') ? System.getenv('GITHUB_RUN_NUMBER').toInteger() : 1
+        versionName "1.0." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+
+    signingConfigs {
+        // 저장소에 고정된 키 — 매번 같은 서명이라 업데이트 설치가 됩니다
+        fixed {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.fixed
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

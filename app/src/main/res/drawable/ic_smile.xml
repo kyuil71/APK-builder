@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 말랑한 봉오리 + 미소 (108dp 어댑티브 아이콘, 안전 영역 66dp 안) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#E6C2AE"
+        android:pathData="M54,30 C72,28.5 77,57 64,62 C53,66 35,62 36.5,47 C37.5,37 45,30 54,30 Z" />
+    <path android:fillColor="#FFF4E6"
+        android:pathData="M50,36 C56,34.5 60,37 59,40 C57.5,43 51,43 48.5,40.5 C47,39 47.5,37 50,36 Z" />
+    <path android:strokeColor="#A9765F" android:strokeWidth="2.6" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M46,49 Q53,57 60,49" />
+    <path android:fillColor="#00000000" android:strokeColor="#D9A28C" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:pathData="M38,72 Q54,80 70,72" />
+</vector>
