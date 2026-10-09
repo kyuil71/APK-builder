@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 코발트 블루 아이소메트릭 큐브 + 네온 라인 (108dp 어댑티브 아이콘, 안전 영역 66dp 안) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- 윗면 -->
+    <path android:fillColor="#D2D7DF" android:pathData="M54,30 L74,41.5 L54,53 L34,41.5 Z" />
+    <!-- 왼쪽 면 -->
+    <path android:fillColor="#0846FF" android:pathData="M34,41.5 L54,53 L54,77 L34,65.5 Z" />
+    <!-- 오른쪽 면 -->
+    <path android:fillColor="#0636B8" android:pathData="M54,53 L74,41.5 L74,65.5 L54,77 Z" />
+    <!-- 네온 도약선 -->
+    <path android:fillColor="#00000000" android:strokeColor="#3D8BFF" android:strokeWidth="1.6"
+        android:strokeLineCap="round" android:pathData="M34,53.5 L54,65 L74,53.5" />
+</vector>

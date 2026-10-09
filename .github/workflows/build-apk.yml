@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -23,26 +23,31 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build APK
+      - name: Build all apps
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Rename APK
+      - name: Collect APKs
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk out/SoftSmile.apk
+          cp app/build/outputs/apk/softsmile/debug/app-softsmile-debug.apk out/SoftSmile.apk
+          cp app/build/outputs/apk/cmfcube/debug/app-cmfcube-debug.apk out/CMFCube.apk
+          ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SoftSmile-apk
-          path: out/SoftSmile.apk
+          name: apks
+          path: out/*.apk
 
       - name: Publish release (폰에서 바로 다운로드)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: 말랑한 미소 v1.0.${{ github.run_number }}
+          name: HTML 앱 모음 v1.0.${{ github.run_number }}
           make_latest: true
           body: |
-            아래 **SoftSmile.apk**를 폰에서 눌러 다운로드한 뒤 설치하세요.
-            처음 설치 시 '출처를 알 수 없는 앱 설치'를 허용해야 합니다.
-          files: out/SoftSmile.apk
+            폰에서 원하는 APK를 눌러 다운로드한 뒤 설치하세요.
+            - **SoftSmile.apk** — 말랑한 미소 · Interaction Lab
+            - **CMFCube.apk** — 도약 CMF 큐브 테스트 (3D)
+
+            처음 설치 시 '출처를 알 수 없는 앱 설치'를 허용해야 합니다. 이미 설치한 앱은 덮어 설치하면 업데이트됩니다.
+          files: out/*.apk

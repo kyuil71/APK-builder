@@ -2,17 +2,39 @@ plugins {
     id 'com.android.application'
 }
 
+// 앱 하나 = flavor 하나. 새 HTML 앱을 추가하려면 아래 productFlavors에 한 블록 추가하고
+// app/src/<이름>/assets/index.html 을 넣으면 됩니다.
+def runNo = System.getenv('GITHUB_RUN_NUMBER') ?: '0'
+
 android {
-    namespace 'com.kyuil71.softsmile'
+    namespace 'com.kyuil71.htmlapp'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.kyuil71.softsmile'
         minSdk 26
         targetSdk 34
-        // 빌드할 때마다 버전이 올라가서 기존 앱 위에 덮어 설치됩니다
-        versionCode System.getenv('GITHUB_RUN_NUMBER') ? System.getenv('GITHUB_RUN_NUMBER').toInteger() : 1
-        versionName "1.0." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+        versionCode runNo.toInteger() < 1 ? 1 : runNo.toInteger()
+        versionName "1.0." + runNo
+    }
+
+    flavorDimensions 'app'
+    productFlavors {
+        softsmile {
+            dimension 'app'
+            applicationId 'com.kyuil71.softsmile'
+            resValue 'string', 'app_name', '말랑한 미소'
+            resValue 'color', 'app_bg', '#F8F2EA'
+            resValue 'color', 'icon_bg', '#F3E2D6'
+            resValue 'bool', 'light_bars', 'true'
+        }
+        cmfcube {
+            dimension 'app'
+            applicationId 'com.kyuil71.cmfcube'
+            resValue 'string', 'app_name', '도약 CMF 큐브'
+            resValue 'color', 'app_bg', '#000000'
+            resValue 'color', 'icon_bg', '#0B0C10'
+            resValue 'bool', 'light_bars', 'false'
+        }
     }
 
     signingConfigs {
@@ -31,8 +53,17 @@ android {
         }
     }
 
+    // 3D 텍스처·JS를 압축하지 않아 로딩이 빠르도록
+    androidResources {
+        noCompress 'js', 'html'
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
 }
