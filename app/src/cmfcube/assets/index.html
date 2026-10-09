@@ -4,9 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>도약 CMF 큐브 테스트</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- 앱 내장 글꼴: 인터넷 없이도 즉시 로드 (구글 폰트 대기로 화면이 멈추던 문제 해결) -->
+<link href="./vendor/fonts/ibm-plex-sans-kr.css" rel="stylesheet">
 <style>
 :root{
   box-sizing:border-box;
@@ -98,6 +97,16 @@ input[type=range]{width:100%;accent-color:var(--cold);height:28px}
 <body>
 <canvas id="c" aria-label="CMF 3D 정육면체 뷰어"></canvas>
 <div id="load">표면 맵을 생성하는 중…</div>
+<script>
+(function(){
+  var L=document.getElementById('load');
+  function show(m){if(L&&!L.classList.contains('done')){L.textContent='3D를 시작하지 못했습니다: '+m;L.style.padding='24px';L.style.textAlign='center';}}
+  addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href))show('파일을 불러오지 못함 '+(t.src||t.href));else if(e.message)show(e.message);},true);
+  addEventListener('unhandledrejection',function(e){show(String(e.reason&&e.reason.message||e.reason));});
+  setTimeout(function(){if(L&&!L.classList.contains('done')&&L.textContent.indexOf('/8')<0){
+    var gl=document.createElement('canvas').getContext('webgl2');show(gl?'3D 엔진이 시작되지 않았습니다. 앱을 다시 실행해 주세요.':'이 기기에서 WebGL2를 사용할 수 없습니다.');}},20000);
+})();
+</script>
 
 <header class="top">
   <div class="title"><b>도약 CMF 큐브</b><span id="hdrSub">01 도약선 아노다이즈</span></div>
