@@ -82,6 +82,23 @@ class OverlayView(ctx: Context) : View(ctx) {
         // 수평선
         val yh = s.cam.horizonY()
         if (yh > 0 && yh < s.vh) { pt.strokeWidth = 1 * dp; pt.color = Color.argb(110, 255, 255, 255); pt.pathEffect = DashPathEffect(floatArrayOf(6 * dp, 6 * dp), 0f); c.drawLine(X(0.0), Y(yh), X(s.vw.toDouble()), Y(yh), pt); pt.pathEffect = null }
+        // 차 내부 가림 영역 (분석 제외)
+        if (s.cabinPoly.size >= 4) {
+            val cp2 = Path(); cp2.moveTo(X(0.0), Y(s.vh.toDouble()))
+            var k = 0; while (k + 1 < s.cabinPoly.size) { cp2.lineTo(X(s.cabinPoly[k].toDouble()), Y(s.cabinPoly[k + 1].toDouble())); k += 2 }
+            cp2.lineTo(X(s.vw.toDouble()), Y(s.vh.toDouble())); cp2.close()
+            pt.style = Paint.Style.FILL; pt.color = Color.argb(120, 0, 0, 0); c.drawPath(cp2, pt)
+            val edge = Path(); k = 0
+            while (k + 1 < s.cabinPoly.size) { val xx = X(s.cabinPoly[k].toDouble()); val yy = Y(s.cabinPoly[k + 1].toDouble()); if (k == 0) edge.moveTo(xx, yy) else edge.lineTo(xx, yy); k += 2 }
+            pt.style = Paint.Style.STROKE; pt.strokeWidth = 2 * dp; pt.color = Color.argb(200, 251, 146, 60); pt.pathEffect = DashPathEffect(floatArrayOf(10 * dp, 8 * dp), 0f)
+            c.drawPath(edge, pt); pt.pathEffect = null
+            val mid = s.cabinPoly.size / 2 / 2 * 2
+            if (s.cabinPoly[mid + 1] < s.vh - 40) {
+                pt.style = Paint.Style.FILL; pt.color = Color.argb(220, 251, 146, 60); pt.textSize = 14 * sp; pt.typeface = Typeface.DEFAULT_BOLD
+                val label = "차 내부 · 분석 제외" + (if (s.cabinLearned) " (학습됨)" else "")
+                c.drawText(label, X(s.vw / 2.0) - pt.measureText(label) / 2, Y(s.cabinPoly[mid + 1].toDouble()) + 22 * dp, pt)
+            }
+        }
         // 원거리 확대 영역
         s.crop?.let { b -> pt.strokeWidth = 1 * dp; pt.color = Color.argb(80, 255, 255, 255); pt.pathEffect = DashPathEffect(floatArrayOf(4 * dp, 6 * dp), 0f); c.drawRect(X(b.x), Y(b.y), X(b.r), Y(b.b), pt); pt.pathEffect = null }
 

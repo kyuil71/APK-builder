@@ -142,7 +142,7 @@ class Lanes(private val p: Params) {
      * px: ARGB 픽셀 (W×H, 축소 영상), f: 이 영상 기준 초점거리(px), toSrc: 원본 좌표 배율,
      * boxes: 제외 영역 [x0,y0,x1,y1] (이 영상 좌표)
      */
-    fun detectPoints(px: IntArray, W: Int, H: Int, f: Double, pitch: Double, toSrc: Double, boxes: List<DoubleArray>): List<LanePt> {
+    fun detectPoints(px: IntArray, W: Int, H: Int, f: Double, pitch: Double, toSrc: Double, boxes: List<DoubleArray>, floor: IntArray? = null): List<LanePt> {
         val h = p.camH
         val cx = W / 2.0; val cy = H / 2.0
         val y0 = max(0, ceil(cy - f * tan(pitch) + 3).toInt())
@@ -186,7 +186,8 @@ class Lanes(private val p: Params) {
                 val xc = (x + xf) / 2.0
                 val ic = I[round(xc).toInt()]
                 val side = max(I[max(0, x - 2)], I[min(W - 1, xf + 2)])
-                if (ic > med + T2 && ic - side > T && boxes.none { xc > it[0] && xc < it[2] && y > it[1] && y < it[3] })
+                val xi = round(xc).toInt()
+                if (ic > med + T2 && ic - side > T && (floor == null || y < floor[xi]) && boxes.none { xc > it[0] && xc < it[2] && y > it[1] && y < it[3] })
                     out += LanePt((xc - cx) * zc / f, D, xc * toSrc, y * toSrc)
                 x = xf + 1
             }
@@ -406,12 +407,13 @@ class Lanes(private val p: Params) {
 
 /* ───────────────────────── 거리 측정 ───────────────────────── */
 
-class Measured(val det: Det, val X: Double, val Z: Double, val ground: Boolean)
+class Measured(val det: Det, val X: Double, val Z: Double, val ground: Boolean, val bottomCut: Boolean = false)
 
 /** 바닥 접점(카메라 높이·기울기) + 클래스 높이 + 뒷모습 폭의 가중 평균 */
-fun measure(det: Det, cam: Cam, motionOk: Boolean): Measured {
+/** floorV: 이 물체 아래쪽의 차 내부 가림선(영상 v). 박스 아래가 가려졌으면 바닥 접점을 쓰지 않는다 */
+fun measure(det: Det, cam: Cam, motionOk: Boolean, floorV: Double = cam.vh.toDouble()): Measured {
     val bb = det.box; val P = det.kind
-    val topCut = bb.y < cam.vh * 0.01; val botCut = bb.b > cam.vh * 0.99
+    val topCut = bb.y < cam.vh * 0.01; val botCut = bb.b > min(cam.vh * 0.99, floorV - 3)
     val sideCut = bb.x < cam.vw * 0.01 || bb.r > cam.vw * 0.99
     var zs = 0.0; var ws = 0.0; var ground = false
     if (!botCut && motionOk) {
@@ -425,8 +427,92 @@ fun measure(det: Det, cam: Cam, motionOk: Boolean): Measured {
     if (!sideCut && (P.grp != Grp.VEH || bb.w / bb.h < 1.7)) { zs += P.w * cam.f / bb.w * 0.4; ws += 0.4 }
     if (ws == 0.0) { zs = P.w * cam.f / bb.w; ws = 1.0 }
     val Z = clamp(zs / ws, 0.5, 200.0)
-    return Measured(det, (bb.cx - cam.cx) * Z / cam.f, Z, ground)
+    return Measured(det, (bb.cx - cam.cx) * Z / cam.f, Z, ground, botCut)
 }
+
+/* ───────────────────────── 차 내부 가림 (대시보드·보닛) ───────────────────────── */
+
+/**
+ * 화면 아래쪽 차 내부(대시보드·보닛)를 찾아 분석에서 뺀다. 세 가지를 합쳐 가장 넓은 쪽을 쓴다.
+ *  ① 기하: 보닛 끝(높이 약 0.85m, 폰에서 bonnet m 앞)이 화면에서 지나가는 높이 — 그보다 아래 노면은 보닛에 가려 보일 수 없다.
+ *  ② 학습: 달리는 동안 도로는 흘러가지만 대시보드는 화면에서 움직이지 않는다 → 열마다 아래에서부터 '안 움직이는' 영역.
+ *  ③ 수동: 설정의 '대시보드 가림 %'.
+ * learn()은 축소 영상(W×H) 기준. boundary는 열마다 '이 줄부터 아래는 차 내부'(축소 영상 행).
+ */
+class CabinMask {
+    var W = 0; var H = 0
+    private var mean = FloatArray(0)
+    private var act = FloatArray(0)
+    private var frames = 0
+    var auto: IntArray? = null; private set      // 학습된 경계 (축소 영상 행, 없으면 H)
+    val learned get() = auto != null
+
+    fun reset() { frames = 0; auto = null; mean = FloatArray(0); act = FloatArray(0) }
+
+    /** moving: 내 차가 달리는 중일 때만 학습. capRow: 가림선이 이보다 위로 올라가지 못함 (도로를 가리지 않게) */
+    fun learn(px: IntArray, w: Int, h: Int, moving: Boolean, capRow: Int) {
+        if (w != W || h != H || mean.size != w * h) { W = w; H = h; mean = FloatArray(w * h); act = FloatArray(w * h); frames = 0; auto = null }
+        if (!moving) return
+        for (i in 0 until w * h) {
+            val c = px[i]
+            val y = (((c shr 16) and 255) * 3 + ((c shr 8) and 255) * 6 + (c and 255)) / 10f
+            if (frames == 0) { mean[i] = y; act[i] = 8f; continue }
+            val d = abs(y - mean[i])
+            mean[i] += 0.15f * (y - mean[i])
+            act[i] += 0.05f * (d - act[i])
+        }
+        frames++
+        if (frames >= 40 && frames % 10 == 0) compute(capRow)
+    }
+
+    private fun compute(capRow: Int) {
+        val T = 4.0f
+        val top = clamp(capRow.toDouble(), H * 0.40, H - 1.0).toInt()
+        val raw = IntArray(W)
+        var cols = 0
+        for (x in 0 until W) {
+            var y = H - 1; var last = H; var gap = 0
+            while (y >= top) {
+                if (act[y * W + x] < T) { last = y; gap = 0 } else { gap++; if (gap > 3) break }
+                y--
+            }
+            raw[x] = if (H - last >= H * 0.03) last else H
+            if (raw[x] < H) cols++
+        }
+        if (cols < W * 0.3) { auto = null; return }
+        // 15열 중앙값으로 매끄럽게
+        val out = IntArray(W)
+        val win = IntArray(15)
+        for (x in 0 until W) {
+            for (k in 0 until 15) win[k] = raw[(x + k - 7).coerceIn(0, W - 1)]
+            win.sort(); out[x] = win[7]
+        }
+        auto = out
+    }
+}
+
+/**
+ * 차 내부 가림선(원본 영상 v)을 열 u에서. geomV: 보닛 기하 가림선, manualV: 수동, mask: 학습(축소 영상 → 원본 배율 toSrc)
+ * 값이 작을수록(화면 위쪽일수록) 더 넓게 가린다.
+ */
+fun cabinFloor(u: Double, vh: Int, geomV: Double?, manualV: Double?, mask: CabinMask?, toSrc: Double): Double {
+    var v = vh.toDouble()
+    if (geomV != null) v = min(v, geomV)
+    if (manualV != null) v = min(v, manualV)
+    val a = mask?.auto
+    if (mask != null && a != null && mask.W > 0) { val x = (u / toSrc).toInt().coerceIn(0, mask.W - 1); if (a[x] < mask.H) v = min(v, a[x] * toSrc) }
+    return v
+}
+
+/** 보닛 끝이 화면에서 지나가는 높이 (원본 v). 보닛 끝 높이 0.85m 가정, 거리 3~12m로 제한 */
+fun hoodLineV(cam: Cam, bonnet: Double): Double? {
+    val dHood = clamp(bonnet * cam.h / max(0.25, cam.h - 0.85), 3.0, 12.0)
+    val q = cam.project(0.0, dHood) ?: return null
+    return if (q[1] > cam.horizonY()) q[1] else null
+}
+
+/** 박스 높이의 75% 이상이 가림선 아래 = 차 내부에 있는 물체(대시보드·거치대·반사) → 버림 */
+fun inCabin(b: Box, floorV: Double) = b.y >= floorV - 0.25 * b.h
 
 /* ───────────────────────── 추적 ───────────────────────── */
 
@@ -477,7 +563,7 @@ class Tracker {
             tr.X = tr.pX + aX * rX; tr.vX = clamp(tr.vX + bX * rX / dt, -8.0, 8.0)
             tr.Z = tr.pZ + aZ * rZ; tr.vZ = clamp(tr.vZ + bZ * rZ / dt, -45.0, 25.0)
             val bb = m.det.box
-            val cut = bb.y < vh * 0.01 || bb.b > vh * 0.99
+            val cut = bb.y < vh * 0.01 || bb.b > vh * 0.99 || m.bottomCut
             val lnh = ln(bb.h)
             if (cut) { tr.lhInit = false; tr.lhOk = false }
             else if (!tr.lhInit) { tr.lh = lnh; tr.lhRate = 0.0; tr.lhN = 0; tr.lhInit = true; tr.lhOk = false }

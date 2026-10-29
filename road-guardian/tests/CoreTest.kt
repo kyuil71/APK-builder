@@ -224,7 +224,7 @@ fun trackingTest() {
 }
 
 fun main() {
-    scenarios(); unknownRules(); alertPolicy(); trackingTest(); yoloTest(); roadTest()
+    scenarios(); unknownRules(); alertPolicy(); trackingTest(); yoloTest(); cabinTest(); roadTest()
     println("\n실패 $fails")
     if (fails > 0) kotlin.system.exitProcess(1)
 }
@@ -248,4 +248,61 @@ fun yoloTest() {
         if (!ok) fails++
         println("${if (ok) "OK " else "XX "} ${if (chFirst) "1×84×8400" else "1×8400×84"} → ${d.size}개 (${d.joinToString { "${it.kind.label} ${(it.conf * 100).toInt()}%" }}), 차량 중심 ${car?.box?.cx?.roundToInt()},${car?.box?.cy?.roundToInt()}")
     }
+}
+
+/* 차 내부(대시보드) 가림: 기하 가림선 · 주행 중 학습 · 감지 걸러내기 */
+fun cabinTest() {
+    println("— 대시보드 가림")
+    val W = 360; val H = 640                     // 세로 축소 영상
+    var seed = 5L; val rnd = { seed = (seed * 16807) % 2147483647; seed / 2147483647.0 }
+    val dashTop = { x: Int -> (H * 0.80 + 25 * sin(x / 60.0)).toInt() }   // 휘어진 대시보드 윗선
+    val dashTex = IntArray(W * H) { (40 + rnd() * 30).toInt() }        // 대시보드: 고정된 무늬
+    val m = CabinMask()
+    val px = IntArray(W * H)
+    for (fr in 0 until 80) {
+        for (y in 0 until H) for (x in 0 until W) {
+            val g = if (y >= dashTop(x)) dashTex[y * W + x] + (rnd() * 3).toInt()           // 대시보드: 거의 안 변함 (진동 잡음만)
+                    else if (y < H * 0.45) 180                                                  // 하늘
+                    else (90 + 30 * sin((y + fr * 9) * 0.31) + rnd() * 20).toInt()             // 흘러가는 노면
+            px[y * W + x] = (255 shl 24) or (g shl 16) or (g shl 8) or g
+        }
+        m.learn(px, W, H, true, (H * 0.5).toInt())
+    }
+    val a = m.auto
+    val err = if (a == null) 999.0 else (0 until W step 10).maxOf { abs(a[it] - dashTop(it)).toDouble() }
+    val ok1 = a != null && err <= 8
+    if (!ok1) fails++
+    println("${if (ok1) "OK " else "XX "} 주행 중 학습: 대시보드 윗선 최대 오차 ${if (a == null) "학습 안 됨" else "${err.toInt()}px"} (높이 $H px)")
+    // 노면만 흘러가는 영상에서는 가림이 생기지 않아야
+    val m2 = CabinMask()
+    for (fr in 0 until 80) {
+        for (y in 0 until H) for (x in 0 until W) { val g = if (y < H * 0.45) 180 else (90 + 30 * sin((y + fr * 9) * 0.31) + rnd() * 20).toInt(); px[y * W + x] = (255 shl 24) or (g shl 16) or (g shl 8) or g }
+        m2.learn(px, W, H, true, (H * 0.5).toInt())
+    }
+    val ok2 = m2.auto == null
+    if (!ok2) fails++
+    println("${if (ok2) "OK " else "XX "} 도로만 보일 때 가림 없음 (${if (m2.auto == null) "없음" else "잘못 생김"})")
+    // 정차 중에는 학습하지 않음
+    val m3 = CabinMask(); repeat(80) { m3.learn(px, W, H, false, H / 2) }
+    val ok3 = m3.auto == null
+    if (!ok3) fails++
+    println("${if (ok3) "OK " else "XX "} 정차 중에는 학습 안 함")
+    // 기하 가림선: 폰 1.25m, 보닛 1.8m → 보닛 끝 약 5.6m 지점
+    val cam = Cam(1080, 1920, 1920 / 2.0 / tan(72 * DEG / 2), 5 * DEG, 1.25)
+    val hv = hoodLineV(cam, 1.8)
+    val ok4 = hv != null && hv > cam.horizonY() && hv < 1920
+    if (!ok4) fails++
+    println("${if (ok4) "OK " else "XX "} 보닛 기하 가림선 v=${hv?.roundToInt()} (지평선 ${cam.horizonY().roundToInt()}, 화면 높이 1920)")
+    // 감지 걸러내기: 대시보드 '차량'은 버리고, 아래가 가려진 실제 앞차는 남김
+    val floor = 1500.0
+    val dash = Box(200.0, 1560.0, 600.0, 300.0)        // 가림선 아래
+    val leadCar = Box(400.0, 1200.0, 300.0, 360.0)     // 아래 일부만 가림선 아래
+    val far = Box(500.0, 1000.0, 80.0, 60.0)
+    val ok5 = inCabin(dash, floor) && !inCabin(leadCar, floor) && !inCabin(far, floor)
+    if (!ok5) fails++
+    println("${if (ok5) "OK " else "XX "} 대시보드 박스 제외=${inCabin(dash, floor)}, 아래 가려진 앞차 유지=${!inCabin(leadCar, floor)}, 먼 차 유지=${!inCabin(far, floor)}")
+    val mLead = measure(Det(leadCar, Kind.CAR, 0.9), cam, true, floor)
+    val ok6 = mLead.bottomCut && !mLead.ground
+    if (!ok6) fails++
+    println("${if (ok6) "OK " else "XX "} 아래가 가려진 앞차는 바닥 접점을 쓰지 않음 (크기로 ${"%.1f".format(mLead.Z)}m)")
 }

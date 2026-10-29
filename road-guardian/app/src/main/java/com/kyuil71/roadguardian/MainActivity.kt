@@ -436,7 +436,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         }
         val lensTxt = if (videoRunning) "녹화 영상" else if (lens == "tele") (if (hwZoom > 1.4) "망원 %.1f×".format(hwZoom) else "중앙 확대") else "광각 1×"
         speedText.text = if (s.ego == null) "-- km/h" else "${(s.ego * 3.6).roundToInt()} km/h"
-        chipText.text = "$laneTxt · $gpsTxt\n$lensTxt · 화각 ${hfovNow().roundToInt()}°"
+        val cabinTxt = if (s.cabinLearned) "가림 학습됨" else "가림 보닛 계산"
+        chipText.text = "$laneTxt · $gpsTxt\n$lensTxt · $cabinTxt" + (if (s.cabinRejected > 0) " (내부 ${s.cabinRejected}개 제외)" else "")
         statusText.text = (if (videoRunning) "$videoProgress · " else "") +
             "AI ${s.accel} ${s.procMs}ms · %.0ffps · 감지 ${s.detCount} · 기울기 %.1f°".format(fps, s.pitchDeg) +
             (if (kotlin.math.abs(s.autoDeg) > 0.05) " (자동 %+.1f°)".format(s.autoDeg) else "")

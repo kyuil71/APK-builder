@@ -23,7 +23,8 @@ class Snapshot(
     val brakeD: Double?, val far: Double, val pathLevel: Int, val crop: Box?,
     val risk: Risk, val msg: String, val laneBasis: Int, val procMs: Long, val ego: Double?,
     val pitchDeg: Double, val autoDeg: Double, val alarmOn: Boolean, val alarmTitle: String, val alarmSub: String,
-    val alarmDir: String, val detCount: Int, val nearVru: Boolean, val accel: String, val timeMs: Long)
+    val alarmDir: String, val detCount: Int, val nearVru: Boolean, val accel: String, val timeMs: Long,
+    val cabinPoly: FloatArray, val cabinLearned: Boolean, val cabinRejected: Int)
 
 /** 프레임 1장: 차선 → 감지(+원거리 확대) → 거리 → 추적 → 판단 → 경고. 분석 스레드에서만 호출 */
 class Engine {
@@ -37,8 +38,9 @@ class Engine {
     private var laneBmp: Bitmap? = null
     private var lanePx = IntArray(0)
     private var cropTurn = false
+    val cabin = CabinMask()
 
-    fun reset() { tracker.reset(); lanes.reset(); policy.reset() }
+    fun reset() { tracker.reset(); lanes.reset(); policy.reset(); cabin.reset() }
 
     private fun syncParams() {
         p.reactT = Settings.num("reactT"); p.brakeA = Settings.num("brakeA"); p.laneOn = Settings.bool("laneOn")
@@ -68,10 +70,23 @@ class Engine {
         var lum = 0L; var cnt = 0
         var i = 0; while (i < lanePx.size) { val c = lanePx[i]; lum += ((c shr 16) and 255) * 3 + ((c shr 8) and 255) * 6 + (c and 255); cnt++; i += 97 }
         val meanLuma = if (cnt > 0) lum / 10.0 / cnt else 0.0
+        val sc = W.toDouble() / vw
+
+        // ── 차 내부(대시보드·보닛) 가림선: 기하 + 주행 중 학습 + 수동 ──
+        val auto = Settings.bool("cabinAuto")
+        if (auto) {
+            val cap = cam.project(0.0, 12.0)?.get(1)?.let { (it * sc).toInt() } ?: (H / 2)   // 12m 앞 노면보다 위로는 가리지 않음
+            cabin.learn(lanePx, W, H, (ego ?: 0.0) > 4 && meanLuma > 18, cap)
+        } else cabin.reset()
+        val geomV = if (motionOk) hoodLineV(cam, p.bonnet) else null
+        val pct = Settings.num("cabinPct")
+        val manualV = if (pct > 0) vh * (1 - pct / 100) else null
+        val floorAt = { u: Double -> cabinFloor(u, vh, geomV, manualV, if (auto) cabin else null, 1 / sc) }
+        val floorSmall = IntArray(W) { (floorAt((it + 0.5) / sc) * sc).toInt() }
+
         if (p.laneOn && motionOk) {
-            val sc = W.toDouble() / vw
             val boxes = tracker.tracks.filter { it.hits >= 2 && it.kind.grp != Grp.VRU }.map { doubleArrayOf(it.box.x * sc, it.box.y * sc, it.box.r * sc, it.box.b * sc) }
-            val pts = lanes.detectPoints(lanePx, W, H, f * sc, pitch, 1 / sc, boxes)
+            val pts = lanes.detectPoints(lanePx, W, H, f * sc, pitch, 1 / sc, boxes, floorSmall)
             lanes.update(pts, nowMs, ego, cam, yaw)
         } else lanes.reset()
 
@@ -101,7 +116,11 @@ class Engine {
                 dets = merged
             }
         }
-        val meas = dets.map { measure(it, cam, motionOk) }
+        // 차 내부에 있는 '물체'(대시보드·거치대·반사)는 버리고, 아래가 가려진 실제 물체는 바닥 접점 없이 측정
+        val before = dets.size
+        dets = dets.filter { !inCabin(it.box, floorAt(it.box.cx)) }
+        val rejected = before - dets.size
+        val meas = dets.map { measure(it, cam, motionOk, floorAt(it.box.cx)) }
         tracker.update(meas, tSec, vh, hypot(vw.toDouble(), vh.toDouble()), yaw, ego)
         for (tr in tracker.tracks) assess(tr, ego, p, lanes, motion)
         val procMs = android.os.SystemClock.elapsedRealtime() - t0
@@ -145,7 +164,9 @@ class Engine {
             alert.alarmOn, if (w != null) "$side ${w.kind.label} 충돌 위험" else "충돌 위험",
             (if (w != null) fmtDist(distRange(w, p, lanes)) else "") + (if (tt != null) " · 약 ${tt}초" else "") + " · 브레이크",
             when (side) { "왼쪽" -> "◀"; "오른쪽" -> "▶"; else -> "▲" },
-            dets.size, vis.any { it.Z < 25 && it.kind.grp != Grp.VEH }, det?.accel ?: "-", nowMs)
+            dets.size, vis.any { it.Z < 25 && it.kind.grp != Grp.VEH }, det?.accel ?: "-", nowMs,
+            FloatArray(50) { k -> val u = vw * (k / 2) / 24.0; if (k % 2 == 0) u.toFloat() else floorAt(u).toFloat() },
+            cabin.learned, rejected)
     }
 
     @Volatile var lastAlert: AlertOut? = null
