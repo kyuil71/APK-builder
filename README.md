@@ -24,3 +24,7 @@
 - HTML을 `https://appassets.androidplatform.net/assets/` 주소로 열어 ES 모듈·웹폰트·localStorage가 웹사이트처럼 동작
 - 웹 진동(`navigator.vibrate`)을 기기 진동으로 연결
 - 폴드를 접고 펴도 화면 상태가 유지됨
+
+## 네이티브 앱: AI Road Guardian (`road-guardian/`)
+Kotlin · CameraX · YOLOv8n(ONNX) 기반 주행 위험 인식 시험용 앱. 별도 워크플로가 빌드해서
+Releases에 **RoadGuardian.apk**로 올립니다. 자세한 내용은 [`road-guardian/README.md`](road-guardian/README.md).

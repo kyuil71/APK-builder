@@ -3,6 +3,10 @@ name: Build APK
 on:
   push:
     branches: [ main ]
+    # 네이티브 앱(road-guardian)은 별도 워크플로가 빌드합니다
+    paths-ignore:
+      - 'road-guardian/**'
+      - '.github/workflows/road-guardian.yml'
   workflow_dispatch:
 
 permissions:

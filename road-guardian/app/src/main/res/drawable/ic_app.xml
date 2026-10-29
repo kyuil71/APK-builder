@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 원근감 있는 도로 두 차선 + 진행 방향 화살표 (108dp 어댑티브, 안전 영역 66dp) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#1F3A4A" android:pathData="M48,32 L60,32 L78,76 L30,76 Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#4ADE80" android:strokeWidth="3"
+        android:strokeLineCap="round" android:pathData="M48,32 L32,76 M60,32 L76,76" />
+    <path android:fillColor="#FFFFFF" android:pathData="M54,40 L61,52 L56.5,52 L56.5,66 L51.5,66 L51.5,52 L47,52 Z" />
+    <path android:fillColor="#EF4444" android:pathData="M42,70 L66,70 L67,73 L41,73 Z" />
+</vector>

@@ -1,0 +1,8 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+# 모델은 빌드할 때 내려받습니다 (저장소에 넣지 않음)
+app/src/main/assets/yolov8n.onnx
