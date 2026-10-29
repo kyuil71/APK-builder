@@ -46,7 +46,7 @@ class Engine {
     }
 
     /**
-     * frame: 원본(가로) 영상, tSec: 프레임 시각, hfovDeg: 지금 렌즈의 실제 가로 화각, basePitch: 센서(또는 영상 설정) 기울기,
+     * frame: 원본 영상(세로든 가로든), tSec: 프레임 시각, hfovDeg: 지금 렌즈의 '긴 변' 화각, basePitch: 센서(또는 영상 설정) 기울기,
      * yaw: 회전 속도, ego: 내 차 속도 (m/s, 모르면 null), tele: 망원 사용 중, lensBusy: 렌즈 전환 중
      */
     fun process(frame: Bitmap, tSec: Double, nowMs: Long, hfovDeg: Double, basePitch: Double, motionOk: Boolean,
@@ -54,13 +54,13 @@ class Engine {
         val t0 = android.os.SystemClock.elapsedRealtime()
         syncParams()
         val vw = frame.width; val vh = frame.height
-        val f = (vw / 2.0) / tan(hfovDeg * DEG / 2)
+        val f = (max(vw, vh) / 2.0) / tan(hfovDeg * DEG / 2)   // 화각은 긴 변 기준 → 세로 영상에도 그대로
         val pitch = basePitch + Settings.num("pitchOff") * DEG + lanes.pitchAuto
         motion.pitch = pitch; motion.ok = motionOk; motion.yawRate = yaw; motion.yawSlow = yawSlow
         val cam = Cam(vw, vh, f, pitch, p.camH)
 
-        // ── 차선 (480폭 축소 영상) + 밝기 점검 ──
-        val W = 480; val H = max(1, (480.0 * vh / vw).toInt())
+        // ── 차선 (축소 영상: 가로 480폭, 세로 360폭) + 밝기 점검 ──
+        val W = if (vh > vw) 360 else 480; val H = max(1, (W.toDouble() * vh / vw).toInt())   // 비율 유지 (가로·세로 같은 배율)
         val small = Bitmap.createScaledBitmap(frame, W, H, true)
         if (lanePx.size != W * H) lanePx = IntArray(W * H)
         small.getPixels(lanePx, 0, W, 0, 0, W, H)

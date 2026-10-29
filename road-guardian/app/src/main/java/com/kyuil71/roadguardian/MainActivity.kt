@@ -184,61 +184,68 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private fun buildUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(11, 13, 16)) }
-        val main = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        // 세로 화면: 위험 단계 → 카메라 → 속도·상태 → 지도 + 버튼
+        val main = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)) }
         root.addView(main, FrameLayout.LayoutParams(-1, -1))
 
-        // 카메라 영역
-        val camArea = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        // 위험 단계 + 한 줄 설명
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        riskCard = tv("● 판단 불가", 24f, Color.WHITE, true).apply {
+            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), dp(8), dp(14), dp(8))
+            background = rounded(Color.rgb(90, 98, 110), 12)
+        }
+        head.addView(riskCard, LinearLayout.LayoutParams(-2, -2))
+        head.addView(tv("AI ROAD GUARDIAN\n시험용", 13f, Color.rgb(139, 150, 163), true).apply { gravity = Gravity.END },
+            LinearLayout.LayoutParams(0, -2, 1f))
+        main.addView(head)
+        msgText = tv("AI 모델 준비 중", 16f, Color.rgb(232, 237, 242)).apply { setPadding(dp(2), dp(6), dp(2), dp(6)); maxLines = 2 }
+        main.addView(msgText)
+
+        // 카메라 영역 (세로 9:16 영상)
+        val camArea = FrameLayout(this).apply { background = rounded(Color.BLACK, 12) ; clipToOutline = true }
         previewView = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FIT_CENTER; implementationMode = PreviewView.ImplementationMode.COMPATIBLE }
         videoView = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE }
         overlay = OverlayView(this)
         camArea.addView(previewView, FrameLayout.LayoutParams(-1, -1))
         camArea.addView(videoView, FrameLayout.LayoutParams(-1, -1))
         camArea.addView(overlay, FrameLayout.LayoutParams(-1, -1))
-        statusText = tv("준비 중", 15f, Color.rgb(219, 227, 234)).apply {
+        statusText = tv("준비 중", 14f, Color.rgb(219, 227, 234)).apply {
             background = rounded(Color.argb(170, 8, 10, 13), 9); setPadding(dp(9), dp(5), dp(9), dp(5))
         }
         camArea.addView(statusText, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START).apply { setMargins(dp(8), dp(8), dp(8), dp(8)) })
-        main.addView(camArea, LinearLayout.LayoutParams(0, -1, 0.68f))
+        main.addView(camArea, LinearLayout.LayoutParams(-1, 0, 0.60f))
 
-        // 오른쪽 패널
-        val side = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(10), dp(10), dp(10)) }
-        side.addView(tv("AI ROAD GUARDIAN · 시험용", 14f, Color.rgb(139, 150, 163), true))
-        riskCard = tv("● 판단 불가", 24f, Color.WHITE, true).apply {
-            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(8))
-            background = rounded(Color.rgb(90, 98, 110), 12)
-        }
-        side.addView(riskCard, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        msgText = tv("AI 모델 준비 중", 16f, Color.rgb(232, 237, 242)).apply { setPadding(0, dp(6), 0, dp(4)); maxLines = 3 }
-        side.addView(msgText)
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        // 속도 + 상태
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(dp(2), dp(6), dp(2), dp(4)) }
         speedText = tv("-- km/h", 28f, Color.WHITE, true)
         row.addView(speedText, LinearLayout.LayoutParams(-2, -2))
-        chipText = tv("", 14f, Color.rgb(170, 180, 192)).apply { setPadding(dp(10), 0, 0, 0) }
+        chipText = tv("", 14f, Color.rgb(170, 180, 192)).apply { setPadding(dp(12), 0, 0, 0) }
         row.addView(chipText, LinearLayout.LayoutParams(0, -2, 1f))
-        side.addView(row)
+        main.addView(row)
+
+        // 위에서 본 지도 + 버튼 4개
+        val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         bird = BirdView(this).apply { background = rounded(Color.rgb(14, 17, 22), 12, Color.rgb(38, 44, 52)) }
-        side.addView(bird, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6); bottomMargin = dp(6) })
-        val g1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val g2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        bottom.addView(bird, LinearLayout.LayoutParams(0, -1, 0.58f).apply { rightMargin = dp(6) })
+        val btns = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         lensBtn = button(lensLabel()) { cycleLens() }
         soundBtn = button(if (Settings.bool("sound")) "경고음 ON" else "경고음 OFF") { toggleSound() }
         videoBtn = button("영상 시험") { if (videoRunning) stopVideo() else videoPicker.launch("video/*") }
         val setBtn = button("설정") { openSettings() }
-        val lp = { LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) } }
-        g1.addView(lensBtn, lp()); g1.addView(soundBtn, lp()); g2.addView(videoBtn, lp()); g2.addView(setBtn, lp())
-        side.addView(g1); side.addView(g2)
-        side.addView(tv("연구·시험 전용 · 충돌 방지 장치 아님", 13f, Color.rgb(199, 154, 58)).apply { setPadding(dp(4), dp(4), 0, 0) })
-        main.addView(side, LinearLayout.LayoutParams(0, -1, 0.32f))
+        for (b in listOf(lensBtn, soundBtn, videoBtn, setBtn)) btns.addView(b, LinearLayout.LayoutParams(-1, 0, 1f).apply { setMargins(0, dp(3), 0, dp(3)) })
+        bottom.addView(btns, LinearLayout.LayoutParams(0, -1, 0.42f))
+        main.addView(bottom, LinearLayout.LayoutParams(-1, 0, 0.40f))
+        main.addView(tv("연구·시험 전용 · 충돌 방지 장치 아님 · 운전 중 조작 금지", 13f, Color.rgb(199, 154, 58)).apply { gravity = Gravity.CENTER; setPadding(0, dp(6), 0, 0) },
+            LinearLayout.LayoutParams(-1, -2))
 
         // 전체 화면 경고
         alarmView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setBackgroundColor(Color.argb(235, 225, 18, 18)); visibility = View.GONE
             isClickable = false
         }
-        alarmDir = tv("▲", 90f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
-        alarmTitle = tv("충돌 위험", 52f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
-        alarmSub = tv("", 26f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
+        alarmDir = tv("▲", 96f, Color.WHITE, true).apply { gravity = Gravity.CENTER }
+        alarmTitle = tv("충돌 위험", 44f, Color.WHITE, true).apply { gravity = Gravity.CENTER; setPadding(dp(16), 0, dp(16), 0) }
+        alarmSub = tv("", 24f, Color.WHITE, true).apply { gravity = Gravity.CENTER; setPadding(dp(16), dp(12), dp(16), 0) }
         alarmView.addView(alarmDir); alarmView.addView(alarmTitle); alarmView.addView(alarmSub)
         root.addView(alarmView, FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
@@ -319,7 +326,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    /** 1배 렌즈의 실제 가로 화각: 초점거리와 센서 크기로 계산 (보정 없이 거리 계산의 기준) */
+    /** 1배 렌즈의 실제 화각(센서 긴 변 기준): 초점거리와 센서 크기로 계산 (보정 없이 거리 계산의 기준) */
     private fun readBaseFov(cam: Camera) {
         try {
             val info = Camera2CameraInfo.from(cam.cameraInfo)
@@ -474,7 +481,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 val wall0 = SystemClock.elapsedRealtime()
                 while (videoRunning && tMs < dur) {
                     val us = tMs * 1000
-                    val b0 = (if (Build.VERSION.SDK_INT >= 27) mmr.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST, 1280, 720)
+                    val b0 = (if (Build.VERSION.SDK_INT >= 27) mmr.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST, 1280, 1280)
                               else mmr.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST)) ?: break
                     val b = if (b0.config != Bitmap.Config.ARGB_8888) b0.copy(Bitmap.Config.ARGB_8888, false) else b0
                     videoProgress = "영상 %d:%02d / %d:%02d".format(tMs / 60000, tMs / 1000 % 60, dur / 60000, dur / 1000 % 60)
