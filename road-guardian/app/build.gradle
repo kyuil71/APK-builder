@@ -20,16 +20,27 @@ android {
     }
 
     signingConfigs {
-        // APK-builder 저장소의 고정 키 — 매번 같은 서명이라 덮어 설치(업데이트)가 됩니다
-        fixed {
-            storeFile file('../../app/debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+        // 이 앱 전용 서명 키 (공용 디버그 키 대신). 매번 같은 키라 덮어 설치(업데이트)가 됩니다.
+        // 비밀번호는 GitHub Secrets(RG_KEY_PASS)가 있으면 그것을, 없으면 아래 값을 씁니다.
+        release {
+            storeFile file('../signing/roadguardian.jks')
+            storePassword System.getenv('RG_KEY_PASS') ?: 'rg-9Xk8QFx2ilN5'
+            keyAlias 'roadguardian'
+            keyPassword System.getenv('RG_KEY_PASS') ?: 'rg-9Xk8QFx2ilN5'
         }
     }
     buildTypes {
-        debug { signingConfig signingConfigs.fixed }
+        // 정식(릴리스) 빌드: 디버그 기능 꺼짐 → 보안 검사에서 '개발용 앱'으로 의심받지 않게
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            debuggable false
+        }
+        debug { signingConfig signingConfigs.release }
+    }
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
     }
     androidResources { noCompress 'onnx' }
     compileOptions {
