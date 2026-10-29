@@ -479,7 +479,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     val b = if (b0.config != Bitmap.Config.ARGB_8888) b0.copy(Bitmap.Config.ARGB_8888, false) else b0
                     videoProgress = "영상 %d:%02d / %d:%02d".format(tMs / 60000, tMs / 1000 % 60, dur / 60000, dur / 1000 % 60)
                     ui.post { videoView.setImageBitmap(b) }
-                    exec.submit { runFrame(b, tMs / 1000.0, false) }.get()
+                    val tNow = tMs
+                    exec.submit(Runnable { runFrame(b, tNow / 1000.0, false) }).get()
                     tMs += 100     // 0.1초 간격 프레임
                     val ahead = (wall0 + tMs) - SystemClock.elapsedRealtime()
                     if (ahead > 0) Thread.sleep(ahead)      // 실제 속도보다 빠르지 않게
