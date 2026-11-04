@@ -15,6 +15,14 @@ android {
         targetSdk 34
         versionCode runNo.toInteger() < 1 ? 1 : runNo.toInteger()
         versionName "1.0." + runNo
+        // 앱별 동작 (flavor에서 바꿈)
+        buildConfigField 'String', 'START_URL', '"https://appassets.androidplatform.net/assets/index.html"'
+        buildConfigField 'boolean', 'LOCK_ROTATION', 'false'
+        buildConfigField 'boolean', 'IMMERSIVE', 'false'
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     flavorDimensions 'app'
@@ -34,6 +42,18 @@ android {
             resValue 'color', 'app_bg', '#000000'
             resValue 'color', 'icon_bg', '#0B0C10'
             resValue 'bool', 'light_bars', 'false'
+        }
+        handflow {
+            dimension 'app'
+            applicationId 'com.kyuil71.handflow'
+            resValue 'string', 'app_name', 'Hand Flow Art'
+            resValue 'color', 'app_bg', '#000000'
+            resValue 'color', 'icon_bg', '#000000'
+            resValue 'bool', 'light_bars', 'false'
+            // 웹사이트(GitHub Pages)를 그대로 열어 항상 최신 버전 — 손 인식 모델은 처음 한 번 받아 오프라인 저장
+            buildConfigField 'String', 'START_URL', '"https://kyuil71.github.io/Camera-Hand-/hand-art/"'
+            buildConfigField 'boolean', 'LOCK_ROTATION', 'true'
+            buildConfigField 'boolean', 'IMMERSIVE', 'true'
         }
     }
 

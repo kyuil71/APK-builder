@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 웹앱 아이콘(icons/icon-512.png)을 그대로 사용 -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/hf_icon"
+    android:gravity="fill" />
