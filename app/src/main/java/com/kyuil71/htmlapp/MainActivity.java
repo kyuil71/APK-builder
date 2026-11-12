@@ -98,7 +98,7 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setTextZoom(100);                // 시스템 글꼴 크기와 무관하게 디자인 그대로
         s.setAllowFileAccess(false);
-        s.setAllowContentAccess(false);
+        s.setAllowContentAccess(true);    // 파일 선택 창에서 고른 파일(content://)을 페이지가 읽을 수 있게 (백업 가져오기)
         // 페이지 색을 WebView가 임의로 어둡게 바꾸지 않도록 (페이지 자체 다크모드는 그대로 동작)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(s, false);
@@ -318,6 +318,10 @@ public class MainActivity extends Activity {
         private int next = 1;
 
         Saver(Activity a) { act = a; }
+
+        /** 2 = 사진·동영상 외 파일은 다운로드 폴더에 저장 + 파일 선택 창 지원 (페이지가 기능 유무를 확인) */
+        @JavascriptInterface
+        public int version() { return 2; }
 
         @JavascriptInterface
         public synchronized int begin(String name, String mime) {
