@@ -20,6 +20,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.PermissionRequest;
+import android.webkit.ValueCallback;
 import android.widget.Toast;
 
 import java.io.OutputStream;
@@ -58,6 +59,8 @@ public class MainActivity extends Activity {
     private WebView web;
     private SharedPreferences prefs;
     private PermissionRequest pendingPerm;
+    private static final int REQ_FILE = 72;
+    private ValueCallback<Uri[]> fileCb;   // <input type=file> (e.g. bringing back a backup file)
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -127,6 +130,19 @@ public class MainActivity extends Activity {
                 }});
             }
 
+            // 페이지의 파일 선택(<input type=file>) → 안드로이드 파일 선택 창
+            @Override
+            public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams params) {
+                if (fileCb != null) fileCb.onReceiveValue(null);
+                fileCb = cb;
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                try { startActivityForResult(Intent.createChooser(i, "파일 선택"), REQ_FILE); }
+                catch (Exception e) { fileCb = null; return false; }
+                return true;
+            }
+
             @Override
             public boolean onConsoleMessage(ConsoleMessage m) {
                 if (m.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
@@ -159,6 +175,16 @@ public class MainActivity extends Activity {
         if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else web.loadUrl(HOME);
         if (BuildConfig.LOCK_ROTATION) askWriteSettings();
+    }
+
+    @Override
+    public void onActivityResult(int code, int result, Intent data) {
+        super.onActivityResult(code, result, data);
+        if (code != REQ_FILE || fileCb == null) return;
+        Uri[] r = null;
+        if (result == RESULT_OK && data != null && data.getData() != null) r = new Uri[]{data.getData()};
+        fileCb.onReceiveValue(r);
+        fileCb = null;
     }
 
     @Override
@@ -298,20 +324,23 @@ public class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT < 29) return -1;
             try {
                 boolean video = mime != null && mime.startsWith("video");
+                boolean media = mime != null && (mime.startsWith("video") || mime.startsWith("image"));
                 ContentValues v = new ContentValues();
                 v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
                 v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
                 v.put(MediaStore.MediaColumns.RELATIVE_PATH,
-                        (video ? Environment.DIRECTORY_MOVIES : Environment.DIRECTORY_PICTURES) + "/Hand Flow Art");
+                        (!media ? Environment.DIRECTORY_DOWNLOADS : video ? Environment.DIRECTORY_MOVIES : Environment.DIRECTORY_PICTURES) + "/Hand Flow Art");
                 v.put(MediaStore.MediaColumns.IS_PENDING, 1);
-                Uri col = video ? MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                // 사진·동영상은 갤러리, 그 밖의 파일(백업 등)은 다운로드 폴더
+                Uri col = !media ? MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                        : video ? MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
                                 : MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
                 Uri uri = act.getContentResolver().insert(col, v);
                 if (uri == null) return -1;
                 OutputStream os = act.getContentResolver().openOutputStream(uri);
                 if (os == null) return -1;
                 int id = next++;
-                open.put(id, new Object[]{uri, os, video});
+                open.put(id, new Object[]{uri, os, video, media});
                 return id;
             } catch (Exception e) { return -1; }
         }
@@ -333,7 +362,7 @@ public class MainActivity extends Activity {
                 ContentValues v = new ContentValues();
                 v.put(MediaStore.MediaColumns.IS_PENDING, 0);
                 act.getContentResolver().update((Uri) o[0], v, null, null);
-                final String msg = ((Boolean) o[2]) ? "동영상을 갤러리에 저장했어요" : "사진을 갤러리에 저장했어요";
+                final String msg = !((Boolean) o[3]) ? "다운로드 폴더(Hand Flow Art)에 저장했어요" : ((Boolean) o[2]) ? "동영상을 갤러리에 저장했어요" : "사진을 갤러리에 저장했어요";
                 act.runOnUiThread(() -> Toast.makeText(act, msg, Toast.LENGTH_SHORT).show());
                 return true;
             } catch (Exception e) { return false; }
