@@ -21,6 +21,10 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.widget.Toast;
 
 import java.io.OutputStream;
@@ -61,6 +65,18 @@ public class MainActivity extends Activity {
     private PermissionRequest pendingPerm;
     private static final int REQ_FILE = 72;
     private ValueCallback<Uri[]> fileCb;   // <input type=file> (e.g. bringing back a backup file)
+    // 기울기: WebView의 devicemotion은 화면을 한 번 터치해야 시작되는 경우가 있어, 가속도(중력 포함)를 앱이 직접 페이지에 전달
+    private SensorManager sm;
+    private long lastGrav = 0;
+    private final SensorEventListener grav = new SensorEventListener() {
+        @Override public void onSensorChanged(SensorEvent e) {
+            long t = System.nanoTime();
+            if (t - lastGrav < 15_000_000L || web == null) return;   // ~60회/초
+            lastGrav = t;
+            web.evaluateJavascript("window.__hfGrav&&__hfGrav(" + e.values[0] + "," + e.values[1] + "," + e.values[2] + ")", null);
+        }
+        @Override public void onAccuracyChanged(Sensor s, int a) {}
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -293,12 +309,15 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onPause() { super.onPause(); web.onPause(); unlockRotation(); }
+    protected void onPause() { super.onPause(); web.onPause(); unlockRotation(); if (sm != null) sm.unregisterListener(grav); }
 
     @Override
     protected void onResume() {
         super.onResume(); web.onResume();
         lockRotation();
+        if (sm == null) sm = (SensorManager) getSystemService(SENSOR_SERVICE);
+        Sensor acc = sm == null ? null : sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (acc != null) sm.registerListener(grav, acc, SensorManager.SENSOR_DELAY_GAME);
         if (BuildConfig.IMMERSIVE) immersive();
     }
 
