@@ -70,6 +70,7 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.fixed
+            debuggable false      // 설치용 앱: 외부에서 디버거로 들여다볼 수 없게
         }
     }
 

@@ -338,9 +338,19 @@ public class MainActivity extends Activity {
 
         Saver(Activity a) { act = a; }
 
-        /** 2 = 사진·동영상 외 파일은 다운로드 폴더에 저장 + 파일 선택 창 지원 (페이지가 기능 유무를 확인) */
+        /** 2 = 사진·동영상 외 파일은 다운로드 폴더에 저장 + 파일 선택 창 지원, 3 = 실패하면 쓰다 만 파일을 지움(cancel) */
         @JavascriptInterface
-        public int version() { return 2; }
+        public int version() { return 3; }
+
+        /** 쓰다 만 파일을 닫고 지움 — 저장에 실패해도 깨진 파일이 갤러리·다운로드 폴더에 남지 않게 */
+        private void discard(Object[] o) {
+            if (o == null) return;
+            try { ((OutputStream) o[1]).close(); } catch (Exception ignored) {}
+            try { act.getContentResolver().delete((Uri) o[0], null, null); } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public synchronized void cancel(int id) { discard(open.remove(id)); }
 
         @JavascriptInterface
         public synchronized int begin(String name, String mime) {
@@ -373,7 +383,7 @@ public class MainActivity extends Activity {
             Object[] o = open.get(id);
             if (o == null) return false;
             try { ((OutputStream) o[1]).write(Base64.decode(b64, Base64.DEFAULT)); return true; }
-            catch (Exception e) { return false; }
+            catch (Exception e) { discard(open.remove(id)); return false; }
         }
 
         @JavascriptInterface
@@ -388,7 +398,7 @@ public class MainActivity extends Activity {
                 final String msg = !((Boolean) o[3]) ? "다운로드 폴더(Hand Flow Art)에 저장했어요" : ((Boolean) o[2]) ? "동영상을 갤러리에 저장했어요" : "사진을 갤러리에 저장했어요";
                 act.runOnUiThread(() -> Toast.makeText(act, msg, Toast.LENGTH_SHORT).show());
                 return true;
-            } catch (Exception e) { return false; }
+            } catch (Exception e) { discard(o); return false; }
         }
     }
 
